@@ -2,16 +2,34 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 N=np.randint(192,1024)
+########BACKUP CODE FOR CHANGES###############
+#my_sync = [1,0,1,0] * 48  #sample pattern (lenght: 192)
+#L = len(my_sync)
+#N = int(np.random.randint(L, L + 1000 + 1))  #between [L, L+1000] 
+#x = data_gen(N, data_sync=my_sync)
+##############################################
+N = int(np.random.randint(192, 1200+1))  # [192, 1200] random
 
-def generate_data(N,data_sync = 0):
-    if data_sync == 0:
+def gen_data(N, data_sync=0):
+   if data_sync == 0:
       data_sync_osc = np.ones(176, dtype=int)
       data_sync_symb = [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1]
       data_sync = np.concatenate((data_sync_osc, data_sync_symb), axis=None)
-    assert N >= len(data_sync), "N must be at least as large as the length of data_sync"
-    data_r = np.random.randint(2, size=N - len(data_sync))
-    data = np.concatenate((data_sync, data_r))
-    return data
+   data_r = np.random.randint(2, size=N - len(data_sync))
+   data = np.concatenate((data_sync, data_r))
+   return data
+
+
+####Additive White Gaussian Noise#####
+def chnl_AWGN(sig, SNR, K):#channel
+   sig_abs2 = [abs(s)**2 for s in sig]
+   P = (K * sum(sig_abs2)) / len(sig_abs2)
+   gamma = 10**(SNR/10)#gamma
+   N0 = P / gamma
+   n = np.sqrt(N0 / 2) * np.random.standard_normal(len(sig))
+   sig_n = sig + n
+   return sig_n
+
 
 def plot_data(data, n_samples=300):
     n = min(len(data), n_samples)
@@ -28,3 +46,4 @@ def plot_data(data, n_samples=300):
 if __name__ == "__main__":
     data = generate_data(N)
     plot_data(data, n_samples=300)
+
