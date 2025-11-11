@@ -1,5 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+SQRT10 = np.sqrt(10)
+
+# Gray 2-bit → level: 00→-3, 01→-1, 10→+3, 11→+1
+_QAM16_LEVELS = np.array([-3, -1, +3, +1])  # index = 2*bh + bl
 
 def gen_data(N, data_sync=0):
    if data_sync == 0:
@@ -10,15 +14,14 @@ def gen_data(N, data_sync=0):
    data = np.concatenate((data_sync, data_r))
    return data
 
-def slicer(data):
-   dataI = data[slice(0, len(data), 2)]
-   dataQ = data[slice(1, len(data), 2)]
-   return dataI, dataQ
-
 def mapper_16QAM(QAM16, data):
-   map_indices = 2 * data[:-1:2] + data[1::2]
-   dataMapped = np.take(QAM16, map_indices)
-   return dataMapped
+    L = (len(bits)//4)*4
+    b = bits[:L].reshape(-1, 4)             # [b3 b2 b1 b0]
+    idxI = 2*b[:,0] + b[:,1]                # (b3,b2)
+    idxQ = 2*b[:,2] + b[:,3]                # (b1,b0)
+    I = _QAM16_LEVELS[idxI]
+    Q = _QAM16_LEVELS[idxQ]
+    return (I + 1j*Q) / SQRT10              # Es ≈ 1
 
 def chnl_AWGN(sig, SNR, K):#channel
    sig_abs2 = [abs(s)**2 for s in sig]
