@@ -110,3 +110,5 @@ def SNR_BER_analysis():
    plt.grid()
 
    plt.show()
+
+print("Hello world")
