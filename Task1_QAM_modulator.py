@@ -1,26 +1,25 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-N=np.randint(192,1024)
-########BACKUP CODE FOR CHANGES###############
-#my_sync = [1,0,1,0] * 48  #sample pattern (lenght: 192)
-#L = len(my_sync)
-#N = int(np.random.randint(L, L + 1000 + 1))  #between [L, L+1000] 
-#x = data_gen(N, data_sync=my_sync)
-##############################################
-N = int(np.random.randint(192, 1200+1))  # [192, 1200] random
-
 def gen_data(N, data_sync=0):
    if data_sync == 0:
-      data_sync_osc = np.ones(176, dtype=int)
-      data_sync_symb = [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1]
+      data_sync_osc = np.ones(176, dtype=int) #array
+      data_sync_symb = [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1]#16-bit pattern
       data_sync = np.concatenate((data_sync_osc, data_sync_symb), axis=None)
    data_r = np.random.randint(2, size=N - len(data_sync))
    data = np.concatenate((data_sync, data_r))
    return data
 
+def slicer(data):
+   dataI = data[slice(0, len(data), 2)]
+   dataQ = data[slice(1, len(data), 2)]
+   return dataI, dataQ
 
-####Additive White Gaussian Noise#####
+def mapper_16QAM(QAM16, data):
+   map_indices = 2 * data[:-1:2] + data[1::2]
+   dataMapped = np.take(QAM16, map_indices)
+   return dataMapped
+
 def chnl_AWGN(sig, SNR, K):#channel
    sig_abs2 = [abs(s)**2 for s in sig]
    P = (K * sum(sig_abs2)) / len(sig_abs2)
@@ -31,19 +30,83 @@ def chnl_AWGN(sig, SNR, K):#channel
    return sig_n
 
 
-def plot_data(data, n_samples=300):
-    n = min(len(data), n_samples)
-    plt.figure(figsize=(10, 3))
-    plt.step(np.arange(n), data[:n], where='post')
-    plt.ylim(-0.2, 1.2)
-    plt.xlabel('Sample index')
-    plt.ylabel('Bit value')
-    plt.title(f'Generated data (first {n} samples, total N={len(data)})')
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+def demapper(symbols_I, symbols_Q, packetSize, threshold = 3.0):
+   Ns = packetSize // 4
+   bits_I = []
+   bits_Q = []
+   for i in range(Ns):
+      if symbols_I[i] >= 0 and symbols_I[i] <= threshold:
+         bits_I.append(1)
+         bits_I.append(0)
 
-if __name__ == "__main__":
-    data = generate_data(N)
-    plot_data(data, n_samples=300)
+      if symbols_I[i] > threshold:
+         bits_I.append(1)
+         bits_I.append(1)
 
+      if symbols_I[i] < 0 and symbols_I[i] >= -threshold:
+         bits_I.append(0)
+         bits_I.append(1)
+
+      if symbols_I[i] < -threshold:
+         bits_I.append(0)
+         bits_I.append(0)
+
+      if symbols_Q[i] >= 0 and symbols_Q[i] <= threshold:
+         bits_Q.append(1)
+         bits_Q.append(0)
+
+      if symbols_Q[i] > threshold:
+         bits_Q.append(1)
+         bits_Q.append(1)
+
+      if symbols_Q[i] < 0 and symbols_Q[i] >= -threshold:
+         bits_Q.append(0)
+         bits_Q.append(1)
+
+      if symbols_Q[i] < -threshold:
+         bits_Q.append(0)
+         bits_Q.append(0)
+
+   bits_I = np.array(bits_I, dtype=int)
+   bits_Q = np.array(bits_Q, dtype=int)
+
+   bitStream = np.zeros(packetSize, dtype=int)
+
+   bitStream[::2] = bits_I
+   bitStream[1::2] = bits_Q
+
+   return bitStream
+
+path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(path)
+import example as qam
+
+def SNR_BER_analysis():
+   """Analyze the BER for each SNR value."""
+   plt.close('all')
+
+   n_tests_per_snr = 50
+   max_snr = 20
+
+   SNR_values = np.arange(1, max_snr + 1)
+   BER_mean_acc = []
+
+   for SNR in SNR_values:
+      print("SNR:", SNR)
+      BER = np.zeros(n_tests_per_snr)
+
+      for j in range(len(BER)):
+            BER[j] = qam.QAMsys(SNR, 0)
+
+      BER_mean = np.mean(BER)
+      BER_mean_acc.append(BER_mean)
+
+   plt.figure(1)
+   plt.scatter(SNR_values, BER_mean_acc)
+   plt.xscale('linear')
+   plt.yscale('log')
+   plt.xlabel('SNR (dB)')
+   plt.ylabel('BER')
+   plt.grid()
+
+   plt.show()
