@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from task1_qam import bits_to_16qam_gray, qam16_gray_to_bits
+from Task1_QAM_modulator import mapper_16QAM, demapper_16QAM
 
 
 class CPOFDM:
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     bits_tx = np.random.randint(0, 2, num_bits)
 
     # 2) Task-1 mapper (imported)
-    qam_tx = bits_to_16qam_gray(bits_tx)
+    qam_tx = mapper_16QAM(bits_tx)
 
     # 3) OFDM TX
     tx_signal, num_ofdm = ofdm.modulate(qam_tx)
@@ -143,7 +143,7 @@ if __name__ == "__main__":
 
     # 5) Task-1 demapper (imported)
     qam_rx_trunc = qam_rx[:num_symbols]
-    bits_rx = qam16_gray_to_bits(qam_rx_trunc)
+    bits_rx = demapper_16QAM(qam_rx_trunc)
 
     ber = np.mean(bits_rx != bits_tx)
     print("BER (ideal channel, Task-1 + Task-3):", ber)

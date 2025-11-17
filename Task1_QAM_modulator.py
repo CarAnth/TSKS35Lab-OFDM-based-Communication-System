@@ -6,7 +6,7 @@ SQRT2 = np.sqrt(2)
 # Gray 2-bit → level: 00→-3, 01→-1, 10→+3, 11→+1
 _QAM16_LEVELS = np.array([-3, -1, +3, +1])  # index = 2*bh + bl
 _I_4 = np.array([-1, -1, +1, +1])          # index = 2*b1 + b0
-_Q_4 = np.array([-1, +1, +1, -1])
+_Q_4 = np.array([-1, +1, -1, +1])
 
 
 def gen_data(N, seed=None):
@@ -115,4 +115,6 @@ plt.semilogy(SNRs, BER16, 's-', label='16-QAM')
 plt.grid(True, which='both')
 plt.xlabel('SNR (dB)'); plt.ylabel('BER')
 plt.title('BER vs SNR — 4-QAM vs 16-QAM')
-plt.legend(); plt.tight_layout(); plt.show()
+plt.legend() 
+plt.tight_layout()
+plt.show()

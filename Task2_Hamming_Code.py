@@ -1,4 +1,9 @@
 import numpy as np
+import matplotlib.pyplot as plt
+
+from Task1_QAM_modulator import mapper_16QAM, demapper_16QAM, mapper_4QAM, demapper_4QAM,chnl_AWGN, SNR_BER_analysis
+
+
 
 class Hamming74:
     # Codeword structure: [p1 p2 d1 p3 d2 d3 d4]
@@ -86,9 +91,7 @@ class Hamming74:
         return uhat_all, stats
 
 
-# ----------------------------------------------------------------------
-#  demonstrate single-bit vs double-bit error behavior
-# ----------------------------------------------------------------------
+# single-bit vs double-bit error demo
 def demo_single_vs_double_error():
     ham = Hamming74()
 
@@ -117,9 +120,7 @@ def demo_single_vs_double_error():
     print("Any info bit error?     :", np.any(uhat2 != u))
 
 
-# ----------------------------------------------------------------------
-#  clean interface for coded simulations with QAM
-# ----------------------------------------------------------------------
+# clean interface for coded simulations
 def hamming74_encode_bits(u_bits: np.ndarray) -> tuple[np.ndarray, int]:
     ham = Hamming74()
     c_bits, orig_len = ham.h74_encode_stream(u_bits)
@@ -132,9 +133,33 @@ def hamming74_decode_bits(r_bits: np.ndarray, orig_len: int) -> np.ndarray:
     return uhat
 
 
-# ----------------------------------------------------------------------
-# Quick self-test (optional)
-# ----------------------------------------------------------------------
+# BER vs SNR with Hamming(7,4) + QAM (Task 2)
+def SNR_BER_analysis_coded(mod='16QAM', SNRs=range(-2, 11),
+                           Nbits=100_000, seed=0):
+    np.random.seed(seed)
+    BER = []
+
+    for S in SNRs:
+        bits = np.random.randint(0, 2, Nbits)
+
+        c_bits, Lorig = hamming74_encode_bits(bits)
+
+        if mod == '16QAM':
+            tx = mapper_16QAM(c_bits)
+            rx = chnl_AWGN(tx, S, 1)
+            bhat = demapper_16QAM(rx)
+        else:
+            tx = mapper_4QAM(c_bits)
+            rx = chnl_AWGN(tx, S, 1)
+            bhat = demapper_4QAM(rx)
+
+        uhat = hamming74_decode_bits(bhat, Lorig)
+        BER.append(np.mean(uhat != bits[:len(uhat)]))
+
+    return np.array(SNRs), np.array(BER)
+
+
+# self-test + Task 2 plots
 if __name__ == "__main__":
     ham = Hamming74()
 
@@ -158,3 +183,25 @@ if __name__ == "__main__":
     print("1st 5 stats:", stats[:5])
 
     demo_single_vs_double_error()
+
+    SNRs = list(range(-2, 11))
+    Nbits = 200_000
+
+    SNRs_u, BER16_u = SNR_BER_analysis('16QAM', SNRs, Nbits=Nbits, seed=1)
+    _,      BER4_u  = SNR_BER_analysis('4QAM',  SNRs, Nbits=Nbits, seed=1)
+
+    SNRs_c, BER16_c = SNR_BER_analysis_coded('16QAM', SNRs, Nbits=Nbits, seed=2)
+    _,      BER4_c  = SNR_BER_analysis_coded('4QAM',  SNRs, Nbits=Nbits, seed=2)
+
+    plt.figure()
+    plt.semilogy(SNRs_u, BER4_u,  'o-',  label='4-QAM uncoded')
+    plt.semilogy(SNRs_c, BER4_c,  'o--', label='4-QAM Hamming(7,4)')
+    plt.semilogy(SNRs_u, BER16_u, 's-',  label='16-QAM uncoded')
+    plt.semilogy(SNRs_c, BER16_c, 's--', label='16-QAM Hamming(7,4)')
+    plt.grid(True, which='both')
+    plt.xlabel('SNR (dB)')
+    plt.ylabel('BER (info bits)')
+    plt.title('BER vs SNR with Hamming(7,4)')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
