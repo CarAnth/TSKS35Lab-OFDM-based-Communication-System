@@ -2,7 +2,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from Task1_QAM_modulator import mapper_16QAM, demapper_16QAM
+from Task1_QAM_modulator import (
+    mapper_16QAM, demapper_16QAM,
+    mapper_4QAM,  demapper_4QAM
+)
 
 
 class CPOFDM:
@@ -116,53 +119,81 @@ class CPOFDM:
 
 if __name__ == "__main__":
     ofdm = CPOFDM(Nfft=128, cp_len=32, fs=25.6e6)
-    bits_per_symbol = 4  # 16-QAM
 
     print("Subcarrier spacing [Hz]:", ofdm.subcarrier_spacing())
     print("OFDM symbol duration [s]:", ofdm.ofdm_symbol_duration())
-    print("Bit rate [bit/s] (approx):", ofdm.bit_rate(bits_per_symbol))
 
-    # 1) Info bits
+    # ------------------------------
+    # 16-QAM TEST (Task-1 + Task-3)
+    # ------------------------------
+    bits_per_symbol = 4
+    print("Bit rate (16-QAM):", ofdm.bit_rate(bits_per_symbol))
+
     num_symbols = 256
-    num_bits = num_symbols * bits_per_symbol
-    bits_tx = np.random.randint(0, 2, num_bits)
+    bits_tx = np.random.randint(0, 2, num_symbols * bits_per_symbol)
 
-    # 2) Task-1 mapper (imported)
     qam_tx = mapper_16QAM(bits_tx)
-
-    # 3) OFDM TX
     tx_signal, num_ofdm = ofdm.modulate(qam_tx)
-    print("Number of OFDM symbols:", num_ofdm)
-    print("TX signal length:", len(tx_signal))
 
-    # Ideal channel
     rx_signal = tx_signal.copy()
-
-    # 4) OFDM RX
     qam_rx = ofdm.demodulate(rx_signal)
 
-    # 5) Task-1 demapper (imported)
-    qam_rx_trunc = qam_rx[:num_symbols]
-    bits_rx = demapper_16QAM(qam_rx_trunc)
+    bits_rx = demapper_16QAM(qam_rx[:num_symbols])
+    ber16 = np.mean(bits_rx != bits_tx)
+    print("BER (ideal channel, 16-QAM):", ber16)
 
-    ber = np.mean(bits_rx != bits_tx)
-    print("BER (ideal channel, Task-1 + Task-3):", ber)
+    # ------------------------------
+    # 4-QAM TEST (Task-1 + Task-3)
+    # ------------------------------
+    bits_per_symbol_4 = 2
+    print("Bit rate (4-QAM):", ofdm.bit_rate(bits_per_symbol_4))
 
-    # Plots for Task-3
+    num_symbols_4 = 256
+    bits_tx4 = np.random.randint(0, 2, num_symbols_4 * bits_per_symbol_4)
+
+    qam_tx4 = mapper_4QAM(bits_tx4)
+    tx_signal_4, num_ofdm4 = ofdm.modulate(qam_tx4)
+
+    rx_signal_4 = tx_signal_4.copy()
+    qam_rx4 = ofdm.demodulate(rx_signal_4)
+
+    bits_rx4 = demapper_4QAM(qam_rx4[:num_symbols_4])
+    ber4 = np.mean(bits_rx4 != bits_tx4)
+    print("BER (ideal channel, 4-QAM):", ber4)
+
+    # ------------------------------
+    # Plots (use 16-QAM example)
+    # ------------------------------
     env = ofdm.compute_envelope(tx_signal)
     plt.figure()
     plt.plot(env)
-    plt.xlabel("Sample index")
-    plt.ylabel("|x[n]|")
-    plt.title("OFDM time-domain envelope")
+    plt.title("OFDM time-domain envelope (16-QAM)")
     plt.grid(True)
 
     f_axis, mag = ofdm.compute_spectrum(tx_signal)
     plt.figure()
-    plt.plot(f_axis / 1e6, 20 * np.log10(mag + 1e-12))
-    plt.xlabel("Frequency [MHz]")
-    plt.ylabel("Magnitude [dB] (normalized)")
-    plt.title("OFDM magnitude spectrum")
+    plt.plot(f_axis / 1e6, 20*np.log10(mag + 1e-12))
+    plt.title("OFDM magnitude spectrum (16-QAM)")
     plt.grid(True)
 
     plt.show()
+    # ------------------------------
+    # Plots for 4-QAM (example)
+    # ------------------------------
+    env4 = ofdm.compute_envelope(tx_signal_4)
+    plt.figure()
+    plt.plot(env4)
+    plt.xlabel("Sample index")
+    plt.ylabel("|x[n]|")
+    plt.title("OFDM time-domain envelope (4-QAM)")
+    plt.grid(True)
+
+    f_axis4, mag4 = ofdm.compute_spectrum(tx_signal_4)
+    plt.figure()
+    plt.plot(f_axis4 / 1e6, 20 * np.log10(mag4 + 1e-12))
+    plt.xlabel("Frequency [MHz]")
+    plt.ylabel("Magnitude [dB] (normalized)")
+    plt.title("OFDM magnitude spectrum (4-QAM)")
+    plt.grid(True)
+    plt.show()
+    
