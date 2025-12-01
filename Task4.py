@@ -30,7 +30,7 @@ def rayleigh_channel(tx_signal, SNR_dB, Lh=14):
 
 def plot_received_spectrum(rx_signal, fs, title="Received signal spectrum"):
     """
-    OFDM alıcı zaman-domain sinyalinin (rx_signal) spektrumunu çizer.
+    Plots the spectrum of the OFDM receiver time-domain signal (rx_signal).
     """
     N = len(rx_signal)
     # FFT + shift
@@ -48,10 +48,9 @@ def plot_received_spectrum(rx_signal, fs, title="Received signal spectrum"):
 
 def plot_constellations(qam_noeq, qam_eq, mod_label="16-QAM", SNR_dB=None):
     """
-    ZF eşitlemeden önce ve sonra elde edilen QAM sembollerinin
-    takımyıldız diyagramlarını yan yana çizer.
+    Plots the constellation diagrams of QAM symbols before and after ZF equalization side-by-side.
     """
-    # Örnek sayısını biraz azalt (plot daha okunaklı olsun diye)
+    # Reduce number of samples (for clearer visualization)
     max_points = 5000
     if len(qam_noeq) > max_points:
         qam_noeq = qam_noeq[:max_points]
@@ -90,7 +89,7 @@ def plot_constellations(qam_noeq, qam_eq, mod_label="16-QAM", SNR_dB=None):
 
 def channel_frequency_response(h, ofdm):
     """
-    Compute frequency response of h on OFDM grid.
+    Compute the frequency response of h on the OFDM grid.
     Returns H_data for data subcarriers.
     """
     Nfft = ofdm.Nfft
@@ -175,7 +174,7 @@ def simulate_one_snr(SNR_dB, num_bits=100_000, use_hamming=False, mod='16QAM', r
     qam_noeq = np.concatenate(qam_noeq_list)
     qam_eq = np.concatenate(qam_eq_list)
 
-    # OFDM modülatörde padding olduğu için truncation
+    # Truncation due to padding in the OFDM modulator
     qam_noeq = qam_noeq[:len(qam_symbols)]
     qam_eq = qam_eq[:len(qam_symbols)]
 
