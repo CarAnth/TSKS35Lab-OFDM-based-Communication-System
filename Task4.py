@@ -28,6 +28,65 @@ def rayleigh_channel(tx_signal, SNR_dB, Lh=14):
     y = y_chan + w
     return y, h
 
+def plot_received_spectrum(rx_signal, fs, title="Received signal spectrum"):
+    """
+    OFDM alıcı zaman-domain sinyalinin (rx_signal) spektrumunu çizer.
+    """
+    N = len(rx_signal)
+    # FFT + shift
+    RX = np.fft.fftshift(np.fft.fft(rx_signal))
+    freqs = np.fft.fftshift(np.fft.fftfreq(N, d=1.0/fs))
+
+    plt.figure()
+    plt.plot(freqs / 1e6, 20 * np.log10(np.abs(RX) + 1e-12))
+    plt.xlabel("Frequency [MHz]")
+    plt.ylabel("Magnitude [dB]")
+    plt.title(title)
+    plt.grid(True)
+    plt.tight_layout()
+
+
+def plot_constellations(qam_noeq, qam_eq, mod_label="16-QAM", SNR_dB=None):
+    """
+    ZF eşitlemeden önce ve sonra elde edilen QAM sembollerinin
+    takımyıldız diyagramlarını yan yana çizer.
+    """
+    # Örnek sayısını biraz azalt (plot daha okunaklı olsun diye)
+    max_points = 5000
+    if len(qam_noeq) > max_points:
+        qam_noeq = qam_noeq[:max_points]
+    if len(qam_eq) > max_points:
+        qam_eq = qam_eq[:max_points]
+
+    title_suffix = ""
+    if SNR_dB is not None:
+        title_suffix = f", SNR = {SNR_dB} dB"
+
+    plt.figure(figsize=(10, 4))
+
+    # Before ZF
+    plt.subplot(1, 2, 1)
+    plt.plot(qam_noeq.real, qam_noeq.imag, ".", markersize=2)
+    plt.axhline(0, color="gray", linewidth=0.5)
+    plt.axvline(0, color="gray", linewidth=0.5)
+    plt.title(f"{mod_label} before ZF{title_suffix}")
+    plt.xlabel("In-phase")
+    plt.ylabel("Quadrature")
+    plt.grid(True)
+
+    # After ZF
+    plt.subplot(1, 2, 2)
+    plt.plot(qam_eq.real, qam_eq.imag, ".", markersize=2)
+    plt.axhline(0, color="gray", linewidth=0.5)
+    plt.axvline(0, color="gray", linewidth=0.5)
+    plt.title(f"{mod_label} after ZF{title_suffix}")
+    plt.xlabel("In-phase")
+    plt.ylabel("Quadrature")
+    plt.grid(True)
+
+    plt.tight_layout()
+
+
 
 def channel_frequency_response(h, ofdm):
     """
@@ -43,7 +102,7 @@ def channel_frequency_response(h, ofdm):
     return H_data
 
 
-def simulate_one_snr(SNR_dB, num_bits=100_000, use_hamming=False, mod='16QAM'):
+def simulate_one_snr(SNR_dB, num_bits=100_000, use_hamming=False, mod='16QAM', return_extras=False):
     """
     Full chain at a single SNR:
       bits -> (optional Hamming) -> QAM(mod) -> OFDM -> Rayleigh+AWGN
@@ -141,7 +200,10 @@ def simulate_one_snr(SNR_dB, num_bits=100_000, use_hamming=False, mod='16QAM'):
         ber_before = np.mean(bits_noeq[:Lcmp_noeq] != bits_tx[:Lcmp_noeq])
         ber_after = np.mean(bits_eq[:Lcmp_eq] != bits_tx[:Lcmp_eq])
 
-    return ber_before, ber_after
+    if return_extras:
+        return ber_before, ber_after, rx_signal, qam_noeq, qam_eq
+    else:
+        return ber_before, ber_after
 
 
 if __name__ == "__main__":
