@@ -29,7 +29,7 @@ def mapper_4QAM(bits):
     idx = 2*b[:,0] + b[:,1]
     I = _I_4[idx]
     Q = _Q_4[idx]
-    return (I + 1j*Q) / SQRT2              # Normalize to Es ≈ 1
+    return (I + 1j*Q) / SQRT2              # Normalize to Es = 1
 
 def chnl_AWGN(sig, SNR, K):   # channel model
     Ps = np.mean(np.abs(sig)**2) * K       # signal power × scaling factor K
@@ -55,7 +55,7 @@ def demapper_4QAM(sym):
     out = []
     s = sym * SQRT2                         # undo normalization
     for z in s:
-        # Gray mapping: 00:-1-j, 01:-1+j, 11:+1+j, 10:+1-j
+        # gray mapping: 00:-1-j, 01:-1+j, 11:+1+j, 10:+1-j
         if   z.real<0 and z.imag<0: out += [0,0]
         elif z.real<0 and z.imag>=0: out += [0,1]
         elif z.real>=0 and z.imag>=0: out += [1,1]

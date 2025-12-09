@@ -6,7 +6,7 @@ from Task1_QAM_modulator import (
     mapper_4QAM,  demapper_4QAM
 )
 from Task3_CP_OFDM_transmitter_and_receiver import CPOFDM
-from Task2_Hamming_Code import hamming74_encode_bits, hamming74_decode_bits
+from Task2_Hamming_Code import h74_encode_bits, h74_decode_bits
 
 ofdm = CPOFDM(Nfft=128, cp_len=32, fs=25.6e6)
 
@@ -114,7 +114,7 @@ def simulate_one_snr(SNR_dB, num_bits=100_000, use_hamming=False, mod='16QAM', r
 
     # 2) Optional Hamming(7,4) coding
     if use_hamming:
-        c_bits, orig_len = hamming74_encode_bits(bits_tx)
+        c_bits, orig_len = h74_encode_bits(bits_tx)
         bits_for_mapper = c_bits
     else:
         bits_for_mapper = bits_tx
@@ -129,13 +129,13 @@ def simulate_one_snr(SNR_dB, num_bits=100_000, use_hamming=False, mod='16QAM', r
     else:
         raise ValueError("mod must be '16QAM' or '4QAM'")
 
-    # 4) QAM mapping
+    #   QAM mapping
     qam_symbols = map_fun(bits_for_mapper)
 
-    # 5) OFDM TX
+    #OFDM TX
     tx_signal, _ = ofdm.modulate(qam_symbols)
 
-    # 6) Scale to 10 dBw (10 W)
+    # 6) Power scaling
     P_tx = np.mean(np.abs(tx_signal)**2)
     P_target = 10.0
     alpha = np.sqrt(P_target / P_tx)
@@ -153,7 +153,7 @@ def simulate_one_snr(SNR_dB, num_bits=100_000, use_hamming=False, mod='16QAM', r
     r_use = rx_signal[:L]
     Rmat = r_use.reshape(-1, block_len)
 
-    # 9) Frequency response on data subcarriers
+    # Frequency response on data subcarriers
     H_data = channel_frequency_response(h, ofdm)
 
     qam_noeq_list = []
@@ -178,14 +178,14 @@ def simulate_one_snr(SNR_dB, num_bits=100_000, use_hamming=False, mod='16QAM', r
     qam_noeq = qam_noeq[:len(qam_symbols)]
     qam_eq = qam_eq[:len(qam_symbols)]
 
-    # 10) Demap to bits
+    # 10) Demapping
     bits_noeq = demap_fun(qam_noeq)
     bits_eq = demap_fun(qam_eq)
 
-    # 11) Optional Hamming decoding + BER calc on INFO bits
+    # 11) Optional Hamming(7,4) decoding
     if use_hamming:
-        uhat_noeq = hamming74_decode_bits(bits_noeq, orig_len)
-        uhat_eq = hamming74_decode_bits(bits_eq, orig_len)
+        uhat_noeq = h74_decode_bits(bits_noeq, orig_len)
+        uhat_eq = h74_decode_bits(bits_eq, orig_len)
 
         Lcmp_noeq = min(len(uhat_noeq), len(bits_tx))
         Lcmp_eq = min(len(uhat_eq), len(bits_tx))
@@ -208,10 +208,7 @@ def simulate_one_snr(SNR_dB, num_bits=100_000, use_hamming=False, mod='16QAM', r
 if __name__ == "__main__":
     SNRs = list(range(0, 21, 4))
     Nbits = 100_000
-
-    # ===========================
-    # 16-QAM RESULTS
-    # ===========================
+    
     ber_before_u_16 = []
     ber_after_u_16 = []
     ber_before_c_16 = []
@@ -246,9 +243,6 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
 
-    # ===========================
-    # 4-QAM RESULTS
-    # ===========================
     ber_before_u_4 = []
     ber_after_u_4 = []
     ber_before_c_4 = []

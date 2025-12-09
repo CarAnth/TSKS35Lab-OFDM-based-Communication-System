@@ -3,8 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from Task1_QAM_modulator import (
-    mapper_16QAM, demapper_16QAM,
-    mapper_4QAM,  demapper_4QAM
+    gen_data, mapper_16QAM, demapper_16QAM,
+    mapper_4QAM,  demapper_4QAM,
+    gen_data
 )
 
 
@@ -97,6 +98,50 @@ class CPOFDM:
         qam_hat = np.concatenate(qam_out)
         return qam_hat
 
+    def build_ifft_input(self, qam_block: np.ndarray) -> np.ndarray:
+        """
+        Construct the IFFT input vector X[k] for a single OFDM symbol.
+
+        Parameters
+        ----------
+        qam_block : np.ndarray
+            One block of QAM symbols with length equal to the number
+            of data-carrying subcarriers.
+
+        Returns
+        -------
+        X : np.ndarray
+            Length-Nfft frequency-domain vector with the data symbols
+            placed on the active subcarriers and zeros on the guard
+            subcarriers.
+        """
+        s = np.asarray(qam_block, dtype=complex).ravel()
+        if len(s) != self.num_data_subcarriers:
+            raise ValueError(
+                f"Expected {self.num_data_subcarriers} QAM symbols, got {len(s)}"
+            )
+
+        X = np.zeros(self.Nfft, dtype=complex)
+        X[self.data_idx] = s
+        return X
+
+    def plot_ifft_input_magnitude(self, qam_block: np.ndarray) -> None:
+        """
+        Plot |X[k]| versus subcarrier index for a single OFDM symbol.
+
+        This corresponds to the discrete-time OFDM symbol spectrum
+        requested in the lab instructions (no CP and no time-domain FFT).
+        """
+        X = self.build_ifft_input(qam_block)
+        mag = np.abs(X)
+
+        plt.figure()
+        plt.stem(np.arange(self.Nfft), mag, basefmt=" ")
+        plt.xlabel("Subcarrier index")
+        plt.ylabel("Amplitude")
+        plt.title("Magnitude of IFFT input X[k]")
+        plt.grid(True)
+
     def compute_spectrum(self, tx_signal: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         x = np.asarray(tx_signal, dtype=complex).ravel()
         if len(x) == 0:
@@ -130,7 +175,7 @@ if __name__ == "__main__":
     print("Bit rate (16-QAM):", ofdm.bit_rate(bits_per_symbol))
 
     num_symbols = 256
-    bits_tx = np.random.randint(0, 2, num_symbols * bits_per_symbol)
+    bits_tx = gen_data(num_symbols * bits_per_symbol, seed=0)
 
     qam_tx = mapper_16QAM(bits_tx)
     tx_signal, num_ofdm = ofdm.modulate(qam_tx)
@@ -149,7 +194,7 @@ if __name__ == "__main__":
     print("Bit rate (4-QAM):", ofdm.bit_rate(bits_per_symbol_4))
 
     num_symbols_4 = 256
-    bits_tx4 = np.random.randint(0, 2, num_symbols_4 * bits_per_symbol_4)
+    bits_tx4 = gen_data
 
     qam_tx4 = mapper_4QAM(bits_tx4)
     tx_signal_4, num_ofdm4 = ofdm.modulate(qam_tx4)
@@ -161,6 +206,12 @@ if __name__ == "__main__":
     ber4 = np.mean(bits_rx4 != bits_tx4)
     print("BER (ideal channel, 4-QAM):", ber4)
 
+    # ------------------------------
+    # Magnitude of IFFT input for one 16-QAM OFDM symbol
+    # ------------------------------
+    # Take the first OFDM symbol worth of QAM data and visualize |X[k]|
+    ##qam_block = qam_tx[:ofdm.num_data_subcarriers]
+    #ofdm.plot_ifft_input_magnitude(qam_block)
     # ------------------------------
     # Plots (use 16-QAM example)
     # ------------------------------
@@ -176,6 +227,22 @@ if __name__ == "__main__":
     plt.title("OFDM magnitude spectrum (16-QAM)")
     plt.grid(True)
 
+    plt.show()
+    
+    # ------------------------------
+    # Discrete-time OFDM symbol spectrum (|X[k]|)
+    # Corresponds to the lab's instruction: magnitude of IFFT input
+    # ------------------------------
+    qam_block = qam_tx[:ofdm.num_data_subcarriers]     # first OFDM symbol's QAM data
+    X = np.zeros(ofdm.Nfft, dtype=complex)
+    X[ofdm.data_idx] = qam_block                       # build IFFT input
+
+    plt.figure()
+    plt.stem(np.arange(ofdm.Nfft), np.abs(X), basefmt=" ")
+    plt.xlabel("Subcarrier index")
+    plt.ylabel("Amplitude")
+    plt.title("Magnitude of IFFT input X[k] (Discrete-time OFDM symbol)")
+    plt.grid(True)
     plt.show()
     # ------------------------------
     # Plots for 4-QAM (example)
@@ -194,6 +261,24 @@ if __name__ == "__main__":
     plt.xlabel("Frequency [MHz]")
     plt.ylabel("Magnitude [dB] (normalized)")
     plt.title("OFDM magnitude spectrum (4-QAM)")
+    plt.grid(True)
+    plt.show()
+
+    
+    # ------------------------------
+    # Discrete-time OFDM symbol spectrum (|X[k]|) for 4-QAM
+    # ------------------------------
+    # Use the first OFDM symbol's QAM data (4-QAM)
+    qam_block_4 = qam_tx4[:ofdm.num_data_subcarriers]
+
+    X4 = np.zeros(ofdm.Nfft, dtype=complex)
+    X4[ofdm.data_idx] = qam_block_4
+
+    plt.figure()
+    plt.stem(np.arange(ofdm.Nfft), np.abs(X4), basefmt=" ")
+    plt.xlabel("Subcarrier index")
+    plt.ylabel("Amplitude")
+    plt.title("Magnitude of IFFT input X[k] (4-QAM)")
     plt.grid(True)
     plt.show()
     
