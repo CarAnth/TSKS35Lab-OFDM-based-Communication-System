@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 
 from Task1_QAM_modulator import (
     gen_data, mapper_16QAM, demapper_16QAM,
-    mapper_4QAM,  demapper_4QAM,
-    gen_data
+    mapper_4QAM,  demapper_4QAM
 )
 
 
@@ -31,6 +30,7 @@ class CPOFDM:
         if guard_total < 0:
             raise ValueError("data_subcarriers cannot exceed Nfft")
 
+        # Data subcarriers as a contiguous block in the middle (baseband ordering)
         guard_left = guard_total // 2
         start_idx = guard_left
         end_idx = start_idx + self.num_data_subcarriers
@@ -99,22 +99,6 @@ class CPOFDM:
         return qam_hat
 
     def build_ifft_input(self, qam_block: np.ndarray) -> np.ndarray:
-        """
-        Construct the IFFT input vector X[k] for a single OFDM symbol.
-
-        Parameters
-        ----------
-        qam_block : np.ndarray
-            One block of QAM symbols with length equal to the number
-            of data-carrying subcarriers.
-
-        Returns
-        -------
-        X : np.ndarray
-            Length-Nfft frequency-domain vector with the data symbols
-            placed on the active subcarriers and zeros on the guard
-            subcarriers.
-        """
         s = np.asarray(qam_block, dtype=complex).ravel()
         if len(s) != self.num_data_subcarriers:
             raise ValueError(
@@ -127,39 +111,142 @@ class CPOFDM:
 
     def plot_ifft_input_magnitude(self, qam_block: np.ndarray) -> None:
         """
-        Plot |X[k]| versus subcarrier index for a single OFDM symbol.
-
-        This corresponds to the discrete-time OFDM symbol spectrum
-        requested in the lab instructions (no CP and no time-domain FFT).
+        Plot |X[k]| for a single OFDM symbol with fftshift,
+        so that DC (and the unused/guard region) is in the middle.
         """
         X = self.build_ifft_input(qam_block)
-        mag = np.abs(X)
+        Xs = np.fft.fftshift(X)
+        mag = np.abs(Xs)
 
+        k = np.arange(-self.Nfft // 2, self.Nfft // 2)
         plt.figure()
-        plt.stem(np.arange(self.Nfft), mag, basefmt=" ")
-        plt.xlabel("Subcarrier index")
-        plt.ylabel("Amplitude")
-        plt.title("Magnitude of IFFT input X[k]")
+        plt.stem(k, mag, basefmt=" ")
+        plt.xlabel("Subcarrier index (shifted)")
+        plt.ylabel("|X[k]|")
+        plt.title("Magnitude of IFFT input X[k] (guards centered)")
         plt.grid(True)
 
     def compute_spectrum(self, tx_signal: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Compute baseband spectrum of the transmitted OFDM signal.
+
+        Uses fftshift so the OFDM band is centered at 0 Hz and
+        the non-active subcarriers around DC appear in the middle.
+        """
         x = np.asarray(tx_signal, dtype=complex).ravel()
         if len(x) == 0:
             return np.array([]), np.array([])
 
         N = len(x)
         X = np.fft.fft(x)
-        half = N // 2
-        X_half = X[:half]
-        mag = np.abs(X_half)
-        mag /= np.max(mag)
+        Xs = np.fft.fftshift(X)
 
-        f_axis = np.linspace(0.0, self.fs / 2.0, half, endpoint=False)
+        mag = np.abs(Xs)
+        mag /= np.max(mag)  # normalize
+
+        f_axis = np.linspace(-self.fs / 2.0, self.fs / 2.0, N, endpoint=False)
         return f_axis, mag
 
     def compute_envelope(self, tx_signal: np.ndarray) -> np.ndarray:
         x = np.asarray(tx_signal, dtype=complex).ravel()
         return np.abs(x)
+    def remove_cp(self, tx_signal: np.ndarray) -> np.ndarray:
+        """
+        Remove cyclic prefix from a serialized OFDM signal.
+
+        Returns only the useful Nfft samples for each OFDM symbol.
+        """
+        x = np.asarray(tx_signal, dtype=complex).ravel()
+        ofdm_block_len = self.Nfft + self.cp_len
+        num_ofdm = len(x) // ofdm_block_len
+        if num_ofdm == 0:
+            return np.array([], dtype=complex)
+
+        x = x[:num_ofdm * ofdm_block_len]
+        Xmat = x.reshape(num_ofdm, ofdm_block_len)
+
+        # Drop CP: keep only last Nfft samples of each block
+        x_no_cp = Xmat[:, self.cp_len:]      # shape: (num_ofdm, Nfft)
+        return x_no_cp.ravel()
+    def lowpass_filter(self, x: np.ndarray, L: int = 8) -> np.ndarray:
+        """
+        Very simple low-pass FIR filter: moving average of length L.
+        This is enough to demonstrate 'filtering' effect on the OFDM spectrum.
+        """
+        x = np.asarray(x, dtype=complex).ravel()
+        if L <= 1:
+            return x
+
+        h = np.ones(L) / L     # boxcar FIR
+        y = np.convolve(x, h, mode="same")
+        return y
+    def compute_spectrum_no_cp(
+        self,
+        tx_signal: np.ndarray,
+        apply_filter: bool = False,
+        L_filter: int = 8
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Compute baseband spectrum of the OFDM signal AFTER CP removal.
+        Optionally applies a simple low-pass filter to the CP-free signal.
+        """
+        x_nc = self.remove_cp(tx_signal)   # CP removed
+        if len(x_nc) == 0:
+            return np.array([]), np.array([])
+
+        if apply_filter:
+            x_nc = self.lowpass_filter(x_nc, L=L_filter)
+
+        N = len(x_nc)
+        X = np.fft.fft(x_nc)
+        Xs = np.fft.fftshift(X)
+
+        mag = np.abs(Xs)
+        mag /= np.max(mag)
+
+        f_axis = np.linspace(-self.fs / 2.0, self.fs / 2.0, N, endpoint=False)
+        return f_axis, mag
+    
+    def compute_ofdm_psd(
+        self,
+        tx_signal: np.ndarray,
+        nfft_psd: int = 8192,
+        remove_cp_first: bool = True,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Estimate Power Spectrum Density (PSD) of OFDM signal.
+
+        - Optionally removes CP before calculating PSD.
+        - Uses one big FFT with zero-padding to nfft_psd.
+        - Returns frequency axis (Hz) and PSD in dB, normalized to 0 dB max.
+        """
+        x = np.asarray(tx_signal, dtype=complex).ravel()
+        if remove_cp_first:
+            x = self.remove_cp(x)
+        if len(x) == 0:
+            return np.array([]), np.array([])
+
+        # Zero-pad or truncate to nfft_psd
+        if len(x) < nfft_psd:
+            x_pad = np.zeros(nfft_psd, dtype=complex)
+            x_pad[:len(x)] = x
+        else:
+            x_pad = x[:nfft_psd]
+
+        # FFT → shift → power
+        X = np.fft.fft(x_pad)
+        Xs = np.fft.fftshift(X)
+        P = np.abs(Xs)**2           # power spectrum
+
+        # Normalize to 0 dB
+        P /= np.max(P)
+        P_dB = 10 * np.log10(P + 1e-15)
+
+        # Frequency axis [-fs/2, fs/2)
+        f_axis = np.linspace(-self.fs/2.0, self.fs/2.0, nfft_psd, endpoint=False)
+        return f_axis, P_dB
+
+
 
 
 if __name__ == "__main__":
@@ -194,7 +281,7 @@ if __name__ == "__main__":
     print("Bit rate (4-QAM):", ofdm.bit_rate(bits_per_symbol_4))
 
     num_symbols_4 = 256
-    bits_tx4 = gen_data
+    bits_tx4 = gen_data(num_symbols_4 * bits_per_symbol_4, seed=1)
 
     qam_tx4 = mapper_4QAM(bits_tx4)
     tx_signal_4, num_ofdm4 = ofdm.modulate(qam_tx4)
@@ -207,45 +294,82 @@ if __name__ == "__main__":
     print("BER (ideal channel, 4-QAM):", ber4)
 
     # ------------------------------
-    # Magnitude of IFFT input for one 16-QAM OFDM symbol
-    # ------------------------------
-    # Take the first OFDM symbol worth of QAM data and visualize |X[k]|
-    ##qam_block = qam_tx[:ofdm.num_data_subcarriers]
-    #ofdm.plot_ifft_input_magnitude(qam_block)
-    # ------------------------------
-    # Plots (use 16-QAM example)
+    # Time-domain envelope (16-QAM)
     # ------------------------------
     env = ofdm.compute_envelope(tx_signal)
     plt.figure()
     plt.plot(env)
     plt.title("OFDM time-domain envelope (16-QAM)")
+    plt.xlabel("Sample index")
+    plt.ylabel("|x[n]|")
+    plt.grid(True)
+    # ----------------------------------------
+    # Spectrum WITHOUT CP (unfiltered)
+    # ----------------------------------------
+    f_axis_nc, mag_nc = ofdm.compute_spectrum_no_cp(tx_signal, apply_filter=False)
+    plt.figure()
+    plt.plot(f_axis_nc / 1e6, 20 * np.log10(mag_nc + 1e-12))
+    plt.title("OFDM magnitude spectrum (16-QAM) - CP removed")
+    plt.xlabel("Frequency [MHz]")
+    plt.ylabel("Magnitude [dB] (normalized)")
     plt.grid(True)
 
+    # ----------------------------------------
+    # Spectrum WITHOUT CP + LOW-PASS FILTER
+    # ----------------------------------------
+    f_axis_filt, mag_filt = ofdm.compute_spectrum_no_cp(
+        tx_signal, apply_filter=True, L_filter=8
+    )
+    plt.figure()
+    plt.plot(f_axis_filt / 1e6, 20 * np.log10(mag_filt + 1e-12))
+    plt.title("OFDM magnitude spectrum (16-QAM) - CP removed + LPF")
+    plt.xlabel("Frequency [MHz]")
+    plt.ylabel("Magnitude [dB] (normalized)")
+    plt.grid(True)
+
+    # ------------------------------
+    # OFDM magnitude spectrum (16-QAM) – shifted
+    # ------------------------------
     f_axis, mag = ofdm.compute_spectrum(tx_signal)
     plt.figure()
-    plt.plot(f_axis / 1e6, 20*np.log10(mag + 1e-12))
+    plt.plot(f_axis / 1e6, 20 * np.log10(mag + 1e-12))
     plt.title("OFDM magnitude spectrum (16-QAM)")
+    plt.xlabel("Frequency [MHz]")
+    plt.ylabel("Magnitude [dB] (normalized)")
     plt.grid(True)
 
-    plt.show()
-    
     # ------------------------------
-    # Discrete-time OFDM symbol spectrum (|X[k]|)
-    # Corresponds to the lab's instruction: magnitude of IFFT input
+    # Discrete-time OFDM symbol spectrum (|X[k]|) – 16-QAM
     # ------------------------------
-    qam_block = qam_tx[:ofdm.num_data_subcarriers]     # first OFDM symbol's QAM data
-    X = np.zeros(ofdm.Nfft, dtype=complex)
-    X[ofdm.data_idx] = qam_block                       # build IFFT input
+    qam_block = qam_tx[:ofdm.num_data_subcarriers]
+    X = ofdm.build_ifft_input(qam_block)
+    Xs = np.fft.fftshift(X)
+    k = np.arange(-ofdm.Nfft // 2, ofdm.Nfft // 2)
+    plt.figure()
+    plt.stem(k, np.abs(Xs), basefmt=" ")
+    plt.xlabel("Subcarrier index (shifted)")
+    plt.ylabel("|X[k]|")
+    plt.title("Magnitude of IFFT input X[k] (16-QAM, guards centered)")
+    plt.grid(True)
+    # ----------------------------------------
+    # Power Spectrum Density of OFDM (16-QAM)
+    # ----------------------------------------
+    f_psd, P_psd_dB = ofdm.compute_ofdm_psd(
+        tx_signal,
+        nfft_psd=8192,
+        remove_cp_first=True
+    )
 
     plt.figure()
-    plt.stem(np.arange(ofdm.Nfft), np.abs(X), basefmt=" ")
-    plt.xlabel("Subcarrier index")
-    plt.ylabel("Amplitude")
-    plt.title("Magnitude of IFFT input X[k] (Discrete-time OFDM symbol)")
+    plt.plot(f_psd / 1e4, P_psd_dB)
+    plt.title("Power spectrum density of OFDM")
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Normalized Power (dB)")
     plt.grid(True)
-    plt.show()
+
+
     # ------------------------------
-    # Plots for 4-QAM (example)
+    # 4-QAM plots
     # ------------------------------
     env4 = ofdm.compute_envelope(tx_signal_4)
     plt.figure()
@@ -262,23 +386,19 @@ if __name__ == "__main__":
     plt.ylabel("Magnitude [dB] (normalized)")
     plt.title("OFDM magnitude spectrum (4-QAM)")
     plt.grid(True)
-    plt.show()
 
-    
     # ------------------------------
-    # Discrete-time OFDM symbol spectrum (|X[k]|) for 4-QAM
+    # Discrete-time OFDM symbol spectrum (|X[k]|) – 4-QAM
     # ------------------------------
-    # Use the first OFDM symbol's QAM data (4-QAM)
     qam_block_4 = qam_tx4[:ofdm.num_data_subcarriers]
-
-    X4 = np.zeros(ofdm.Nfft, dtype=complex)
-    X4[ofdm.data_idx] = qam_block_4
-
+    X4 = ofdm.build_ifft_input(qam_block_4)
+    X4s = np.fft.fftshift(X4)
+    k4 = np.arange(-ofdm.Nfft // 2, ofdm.Nfft // 2)
     plt.figure()
-    plt.stem(np.arange(ofdm.Nfft), np.abs(X4), basefmt=" ")
-    plt.xlabel("Subcarrier index")
-    plt.ylabel("Amplitude")
-    plt.title("Magnitude of IFFT input X[k] (4-QAM)")
+    plt.stem(k4, np.abs(X4s), basefmt=" ")
+    plt.xlabel("Subcarrier index (shifted)")
+    plt.ylabel("|X[k]|")
+    plt.title("Magnitude of IFFT input X[k] (4-QAM, guards centered)")
     plt.grid(True)
+
     plt.show()
-    

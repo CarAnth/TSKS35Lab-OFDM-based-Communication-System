@@ -86,37 +86,39 @@ def plot_constellation(x, title, n=100):
     plt.axhline(0, lw=0.6); plt.axvline(0, lw=0.6)
     plt.gca().set_aspect('equal'); plt.grid(True); plt.title(title)
     plt.xlabel('I'); plt.ylabel('Q'); plt.tight_layout(); plt.show()
-      
-bits = gen_data(100_000, seed=0) 
+
+if __name__ == "__main__":
+    
+    bits = gen_data(100_000, seed=0) 
  
-##print("Hello world")### RESPECT TO ALFRED
-b16 = bits[: (len(bits)//4)*4]
-tx16 = mapper_16QAM(b16)
-plot_constellation(tx16, "16-QAM — TX (clean)", n=200)
+    ##print("Hello world")### RESPECT TO ALFRED
+    b16 = bits[: (len(bits)//4)*4]
+    tx16 = mapper_16QAM(b16)
+    plot_constellation(tx16, "16-QAM — TX (clean)", n=200)
 
-# ===================== 16-QAM: RX constellations (1,5,10 dB; 100 points) =====================
-for S in [1, 5, 10]:
-    rx16 = chnl_AWGN(tx16, S, 1)
-    plot_constellation(rx16, f"16-QAM — RX (SNR={S} dB)", n=100)
+    # ===================== 16-QAM: RX constellations (1,5,10 dB; 100 points) =====================
+    for S in [1, 5, 10]:
+        rx16 = chnl_AWGN(tx16, S, 1)
+        plot_constellation(rx16, f"16-QAM — RX (SNR={S} dB)", n=100)
 
-# ===================== 4-QAM: TX & RX constellations (optional) =====================
-b4 = bits[: (len(bits)//2)*2]
-tx4 = mapper_4QAM(b4)
-plot_constellation(tx4, "4-QAM — TX (clean)", n=200)
-for S in [1, 5, 10]:
-    rx4 = chnl_AWGN(tx4, S, 1)
-    plot_constellation(rx4, f"4-QAM — RX (SNR={S} dB)", n=100)
+    # ===================== 4-QAM: TX & RX constellations (optional) =====================
+    b4 = bits[: (len(bits)//2)*2]
+    tx4 = mapper_4QAM(b4)
+    plot_constellation(tx4, "4-QAM — TX (clean)", n=200)
+    for S in [1, 5, 10]:
+        rx4 = chnl_AWGN(tx4, S, 1)
+        plot_constellation(rx4, f"4-QAM — RX (SNR={S} dB)", n=100)
 
-# ===================== BER curves (−10..10 dB, ≥1e5 bits/SNR) =====================
-SNRs, BER16 = SNR_BER_analysis('16QAM', range(-10,11), Nbits=100_000, seed=1)
-_,    BER4  = SNR_BER_analysis('4QAM',  range(-10,11), Nbits=100_000, seed=1)
+    # ===================== BER curves (−10..10 dB, ≥1e5 bits/SNR) =====================
+    SNRs, BER16 = SNR_BER_analysis('16QAM', range(-10,11), Nbits=100_000, seed=1)
+    _,    BER4  = SNR_BER_analysis('4QAM',  range(-10,11), Nbits=100_000, seed=1)
 
-plt.figure()
-plt.semilogy(SNRs, BER4,  'o-', label='4-QAM')
-plt.semilogy(SNRs, BER16, 's-', label='16-QAM')
-plt.grid(True, which='both')
-plt.xlabel('SNR (dB)'); plt.ylabel('BER')
-plt.title('BER vs SNR — 4-QAM vs 16-QAM')
-plt.legend() 
-plt.tight_layout()
-plt.show()
+    plt.figure()
+    plt.semilogy(SNRs, BER4,  'o-', label='4-QAM')
+    plt.semilogy(SNRs, BER16, 's-', label='16-QAM')
+    plt.grid(True, which='both')
+    plt.xlabel('SNR (dB)'); plt.ylabel('BER')
+    plt.title('BER vs SNR — 4-QAM vs 16-QAM')
+    plt.legend() 
+    plt.tight_layout()
+    plt.show()
